@@ -496,11 +496,11 @@ class ChatClient:
         """Führt die Command-Line-Interface aus"""
         print("\n=== Group Chat ===")
         print("Befehle:")
-        print("  /broadcast <nachricht>  - Broadcast an alle")
-        print("  /msg <user> <nachricht> - Direkt-Nachricht")
-        print("  /chat <user>            - Direkt-Chat initiieren")
-        print("  /users                  - Benutzer auflisten")
-        print("  /quit                   - Beenden")
+        print("  /broadcast (/b) <nachricht>  - Broadcast an alle")
+        print("  /msg (/m) <user> <nachricht> - Direkt-Nachricht")
+        print("  /chat (/c) <user>            - Direkt-Chat initiieren")
+        print("  /users (/u)                  - Benutzer auflisten")
+        print("  /quit (/q)                   - Beenden")
         print()
         
         while self.running:
@@ -511,32 +511,40 @@ class ChatClient:
                 if not line:
                     continue
                     
-                if line.startswith('/broadcast '):
-                    msg = line[11:]
+                # Broadcast: /broadcast oder /b
+                if line.startswith('/broadcast ') or line.startswith('/b '):
+                    # Finde Position nach dem Befehl
+                    space_pos = line.index(' ')
+                    msg = line[space_pos + 1:]
                     self.send_broadcast(msg)
                     
-                elif line.startswith('/msg '):
+                # Message: /msg oder /m
+                elif line.startswith('/msg ') or line.startswith('/m '):
                     parts = line.split(' ', 2)
                     if len(parts) < 3:
-                        print("Verwendung: /msg <user> <nachricht>")
+                        print("Verwendung: /msg (/m) <user> <nachricht>")
                         continue
                     peer_nick = parts[1]
                     msg = parts[2]
                     self.send_peer_message(peer_nick, msg)
                     
-                elif line.startswith('/chat '):
-                    peer_nick = line[6:].strip()
+                # Chat: /chat oder /c
+                elif line.startswith('/chat ') or line.startswith('/c '):
+                    space_pos = line.index(' ')
+                    peer_nick = line[space_pos + 1:].strip()
                     self.initiate_peer_chat(peer_nick)
                     
-                elif line == '/users':
+                # Users: /users oder /u
+                elif line == '/users' or line == '/u':
                     self.list_users()
                     
-                elif line == '/quit':
+                # Quit: /quit oder /q
+                elif line == '/quit' or line == '/q':
                     self.stop()
                     break
                     
                 else:
-                    print("Unbekannter Befehl. Verwende /broadcast, /msg, /chat, /users oder /quit")
+                    print("Unbekannter Befehl. Verwende /b, /m, /c, /u oder /q (oder ausgeschrieben)")
                     
             except EOFError:
                 break
