@@ -152,8 +152,12 @@ class ChatGUI:
         # Prüfe ob bereits verbunden
         with self.client.peer_lock:
             if username not in self.client.peer_connections:
-                # Initiiere Chat
-                self.client.initiate_peer_chat(username)
+                # Initiiere Chat in separatem Thread (blockiert GUI nicht)
+                threading.Thread(
+                    target=self.client.initiate_peer_chat,
+                    args=(username,),
+                    daemon=True
+                ).start()
                 self.add_broadcast_message(f">>> Chat-Anfrage an {username} gesendet <<<")
             else:
                 # Zeige existierenden Tab
@@ -167,6 +171,15 @@ class ChatGUI:
                             
     def create_peer_chat_tab(self, peer_nick: str):
         """Erstellt einen neuen Tab für einen Peer-Chat"""
+        # Thread-safe: Führe im GUI-Thread aus
+        if not self.root:
+            return
+            
+        if threading.current_thread() != threading.main_thread():
+            # Rufe im GUI-Thread auf
+            self.root.after(0, lambda: self.create_peer_chat_tab(peer_nick))
+            return
+            
         if peer_nick in self.peer_chat_tabs:
             return
             
@@ -193,7 +206,13 @@ class ChatGUI:
         def send_peer_msg():
             msg = input_entry.get().strip()
             if msg:
-                self.client.send_peer_message(peer_nick, msg)
+                # Sende in separatem Thread (blockiert GUI nicht)
+                threading.Thread(
+                    target=self.client.send_peer_message,
+                    args=(peer_nick, msg),
+                    daemon=True
+                ).start()
+                # Zeige eigene Nachricht sofort an
                 self.add_peer_message(peer_nick, self.client.nickname, msg)
                 input_entry.delete(0, tk.END)
                 
@@ -210,6 +229,14 @@ class ChatGUI:
         
     def remove_peer_chat_tab(self, peer_nick: str):
         """Entfernt einen Peer-Chat-Tab"""
+        # Thread-safe: Führe im GUI-Thread aus
+        if not self.root:
+            return
+            
+        if threading.current_thread() != threading.main_thread():
+            self.root.after(0, lambda: self.remove_peer_chat_tab(peer_nick))
+            return
+            
         if peer_nick not in self.peer_chat_tabs:
             return
             
@@ -225,17 +252,35 @@ class ChatGUI:
         
     def add_broadcast_message(self, message: str):
         """Fügt eine Nachricht zum Broadcast-Chat hinzu"""
-        if self.chat_display:
-            self.chat_display.config(state=tk.NORMAL)
-            self.chat_display.insert(tk.END, message + '\n')
-            self.chat_display.see(tk.END)
-            self.chat_display.config(state=tk.DISABLED)
+        # Thread-safe: Führe im GUI-Thread aus
+        if not self.root or not self.chat_display:
+            return
+            
+        if threading.current_thread() != threading.main_thread():
+            self.root.after(0, lambda: self.add_broadcast_message(message))
+            return
+            
+        self.chat_display.config(state=tk.NORMAL)
+        self.chat_display.insert(tk.END, message + '\n')
+        self.chat_display.see(tk.END)
+        self.chat_display.config(state=tk.DISABLED)
             
     def add_peer_message(self, peer_nick: str, from_nick: str, message: str):
         """Fügt eine Nachricht zu einem Peer-Chat hinzu"""
+        # Thread-safe: Führe im GUI-Thread aus
+        if not self.root:
+            return
+            
+        if threading.current_thread() != threading.main_thread():
+            self.root.after(0, lambda: self.add_peer_message(peer_nick, from_nick, message))
+            return
+            
         # Erstelle Tab falls nicht vorhanden
         if peer_nick not in self.peer_chat_tabs:
             self.create_peer_chat_tab(peer_nick)
+            
+        if peer_nick not in self.peer_chat_tabs:
+            return
             
         _, chat_text, _ = self.peer_chat_tabs[peer_nick]
         
@@ -246,7 +291,12 @@ class ChatGUI:
         
     def update_users_list(self):
         """Aktualisiert die Benutzerliste"""
-        if not self.users_listbox:
+        # Thread-safe: Führe im GUI-Thread aus
+        if not self.root or not self.users_listbox:
+            return
+            
+        if threading.current_thread() != threading.main_thread():
+            self.root.after(0, self.update_users_list)
             return
             
         # Aktuelle Auswahl speichern
@@ -274,7 +324,12 @@ class ChatGUI:
         """Sendet eine Broadcast-Nachricht"""
         message = self.broadcast_input.get().strip()
         if message:
-            self.client.send_broadcast(message)
+            # Sende in separatem Thread (blockiert GUI nicht)
+            threading.Thread(
+                target=self.client.send_broadcast,
+                args=(message,),
+                daemon=True
+            ).start()
             self.broadcast_input.delete(0, tk.END)
             
     def _update_loop(self):
