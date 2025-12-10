@@ -199,7 +199,7 @@ class ChatClient:
                 
     def process_server_message(self, line: str):
         """Verarbeitet eine Nachricht vom Server"""
-        parts = line.split(' ', 3)
+        parts = line.split(' ')
         command = parts[0]
         
         if command == "USER_JOINED" and len(parts) >= 4:
@@ -225,7 +225,8 @@ class ChatClient:
             
         elif command == "BROADCAST_MSG" and len(parts) >= 3:
             from_nick = parts[1]
-            message = parts[2] if len(parts) > 2 else ""
+            # Alles nach dem zweiten Leerzeichen ist die Nachricht
+            message = ' '.join(parts[2:]) if len(parts) > 2 else ""
             
             print(f"\n[BROADCAST von {from_nick}] {message}")
             print("> ", end='', flush=True)
