@@ -102,18 +102,19 @@ python client.py Alice 192.168.1.10 5555 6001
 python client.py Bob 192.168.1.10 5555 6002
 ```
 
-### 3. Client-Befehle
+### 3. Client-Befehle (CLI)
 
 Nach erfolgreichem Login stehen folgende Befehle zur Verfügung:
 
-#### `/broadcast <nachricht>`
+#### `/broadcast <nachricht>` oder `/b <nachricht>`
 Sendet eine Nachricht an alle verbundenen Benutzer über den Server.
 
 ```
 > /broadcast Hallo zusammen!
+> /b Kurze Nachricht
 ```
 
-#### `/users`
+#### `/users` oder `/u`
 Zeigt alle aktuell online Benutzer an.
 
 ```
@@ -123,27 +124,45 @@ Zeigt alle aktuell online Benutzer an.
   - Charlie [verbunden]
 ```
 
-#### `/chat <user>`
+#### `/chat <user>` oder `/c <user>`
 Initiiert einen Direkt-Chat mit einem anderen Benutzer.
 
 ```
 > /chat Bob
+> /c Alice
 Chat-Anfrage an Bob gesendet
 >>> Direkt-Chat mit Bob verbunden <<<
 ```
 
-#### `/msg <user> <nachricht>`
+#### `/msg <user> <nachricht>` oder `/m <user> <nachricht>`
 Sendet eine Direkt-Nachricht an einen Benutzer (Chat-Verbindung muss bereits bestehen).
 
 ```
 > /msg Bob Hi Bob, wie geht's?
+> /m Alice Hallo!
 ```
 
-#### `/quit`
+#### `/gui`
+Startet die grafische Benutzeroberfläche (GUI). Die CLI wird beendet und die GUI übernimmt.
+
+```
+> /gui
+Starte GUI...
+```
+
+**GUI-Features:**
+- **Benutzerliste**: Zeigt alle online Benutzer an
+- **Broadcast-Chat**: Zentrale Chat-Ansicht für alle Nachrichten
+- **Direkt-Chats**: Separate Tabs für jeden Peer-to-Peer-Chat
+- **Doppelklick**: Auf Benutzer klicken um Chat zu starten
+- **Einfache Bedienung**: Enter zum Senden, keine Befehle nötig
+
+#### `/quit` oder `/q`
 Beendet den Client und meldet sich vom Server ab.
 
 ```
 > /quit
+> /q
 ```
 
 ## Beispiel-Session
@@ -207,6 +226,58 @@ $ python client.py Bob localhost 5555 6002
 [Alice] Wie geht's?
 > /msg Alice Gut, danke! Und dir?
 ```
+
+## GUI (Grafische Benutzeroberfläche)
+
+Das System bietet eine optionale GUI mit tkinter, die ohne Änderungen am bestehenden Protokoll funktioniert.
+
+### GUI starten
+
+Aus der CLI:
+```
+> /gui
+```
+
+Oder direkt beim Start:
+```bash
+python client.py Alice localhost 5555 6001
+# Nach dem Login:
+> /gui
+```
+
+### GUI-Features
+
+**Linke Seite - Benutzerliste:**
+- Zeigt alle online Benutzer
+- Status-Anzeige: `[verbunden]` bei aktiven Chats
+- Doppelklick auf Benutzer startet Direkt-Chat
+- "Chat starten" Button
+
+**Mitte - Broadcast-Chat:**
+- Alle Broadcast-Nachrichten
+- System-Nachrichten (Join/Leave)
+- Eingabefeld mit Enter-Taste zum Senden
+- Automatisches Scrollen
+
+**Rechts - Direkt-Chats:**
+- Separate Tabs für jeden Peer-Chat
+- Automatische Tab-Erstellung bei neuen Chats
+- Eingabefeld pro Chat
+- Chat-Historie pro Verbindung
+
+### GUI-Bedienung
+
+1. **Broadcast senden**: Text im mittleren Feld eingeben und Enter drücken oder "Senden" klicken
+2. **Direkt-Chat starten**: Doppelklick auf Benutzer in der Liste oder Benutzer auswählen und "Chat starten"
+3. **Direkt-Nachricht senden**: Im entsprechenden Tab Text eingeben und Enter/Senden
+4. **GUI schließen**: Fenster schließen (Client bleibt verbunden, kehrt zur CLI zurück)
+
+### Technische Details
+
+- **Framework**: tkinter (Python Standard Library)
+- **Threading**: GUI läuft im Hauptthread, Netzwerk in Background-Threads
+- **Integration**: Keine Änderungen am Protokoll oder der bestehenden Logik
+- **Callbacks**: GUI wird über Events informiert (USER_JOINED, BROADCAST_MSG, etc.)
 
 ## Protokoll-Spezifikation
 

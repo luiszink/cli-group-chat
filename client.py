@@ -45,6 +45,10 @@ class ChatClient:
         
         self.running = False
         
+        # GUI (optional)
+        self.gui = None
+        self.gui_enabled = False
+        
     def start(self) -> bool:
         """Startet den Client und verbindet zum Server"""
         try:
@@ -210,8 +214,12 @@ class ChatClient:
             with self.users_lock:
                 self.users[nick] = (ip, udp_port)
                 
-            print(f"\n>>> {nick} ist beigetreten <<<")
-            print("> ", end='', flush=True)
+            if not self.gui_enabled:
+                print(f"\n>>> {nick} ist beigetreten <<<")
+                print("> ", end='', flush=True)
+            else:
+                if self.gui:
+                    self.gui.show_user_joined(nick)
             
         elif command == "USER_LEFT" and len(parts) >= 2:
             nick = parts[1]
@@ -220,16 +228,24 @@ class ChatClient:
                 if nick in self.users:
                     del self.users[nick]
                     
-            print(f"\n>>> {nick} hat den Chat verlassen <<<")
-            print("> ", end='', flush=True)
+            if not self.gui_enabled:
+                print(f"\n>>> {nick} hat den Chat verlassen <<<")
+                print("> ", end='', flush=True)
+            else:
+                if self.gui:
+                    self.gui.show_user_left(nick)
             
         elif command == "BROADCAST_MSG" and len(parts) >= 3:
             from_nick = parts[1]
             # Alles nach dem zweiten Leerzeichen ist die Nachricht
             message = ' '.join(parts[2:]) if len(parts) > 2 else ""
             
-            print(f"\n[BROADCAST von {from_nick}] {message}")
-            print("> ", end='', flush=True)
+            if not self.gui_enabled:
+                print(f"\n[BROADCAST von {from_nick}] {message}")
+                print("> ", end='', flush=True)
+            else:
+                if self.gui:
+                    self.gui.show_broadcast_message(from_nick, message)
             
         elif command == "LOGOUT_OK":
             logging.info("Logout bestätigt")
@@ -272,8 +288,12 @@ class ChatClient:
             tcp_port = int(parts[2])
             peer_ip = addr[0]
             
-            print(f"\n>>> Chat-Anfrage von {from_nick} <<<")
-            print("> ", end='', flush=True)
+            if not self.gui_enabled:
+                print(f"\n>>> Chat-Anfrage von {from_nick} <<<")
+                print("> ", end='', flush=True)
+            else:
+                if self.gui:
+                    self.gui.add_broadcast_message(f">>> Chat-Anfrage von {from_nick} <<<")
             
             # Automatisch akzeptieren und Verbindung aufbauen
             threading.Thread(
@@ -330,8 +350,12 @@ class ChatClient:
                 # Antworten
                 peer_socket.sendall(f"CHAT_HELLO {self.nickname}\n".encode('utf-8'))
                 
-                print(f"\n>>> Direkt-Chat mit {peer_nick} gestartet <<<")
-                print("> ", end='', flush=True)
+                if not self.gui_enabled:
+                    print(f"\n>>> Direkt-Chat mit {peer_nick} gestartet <<<")
+                    print("> ", end='', flush=True)
+                else:
+                    if self.gui:
+                        self.gui.show_peer_chat_started(peer_nick)
                 
                 with self.peer_lock:
                     self.peer_connections[peer_nick] = peer_socket
@@ -395,8 +419,12 @@ class ChatClient:
             response = file_handle.readline().strip()
             
             if response.startswith("CHAT_HELLO"):
-                print(f"\n>>> Direkt-Chat mit {peer_nick} verbunden <<<")
-                print("> ", end='', flush=True)
+                if not self.gui_enabled:
+                    print(f"\n>>> Direkt-Chat mit {peer_nick} verbunden <<<")
+                    print("> ", end='', flush=True)
+                else:
+                    if self.gui:
+                        self.gui.show_peer_chat_started(peer_nick)
                 
                 with self.peer_lock:
                     self.peer_connections[peer_nick] = peer_socket
@@ -413,14 +441,22 @@ class ChatClient:
                         continue
                         
                     if line == "BYE":
-                        print(f"\n>>> {peer_nick} hat den Direkt-Chat beendet <<<")
-                        print("> ", end='', flush=True)
+                        if not self.gui_enabled:
+                            print(f"\n>>> {peer_nick} hat den Direkt-Chat beendet <<<")
+                            print("> ", end='', flush=True)
+                        else:
+                            if self.gui:
+                                self.gui.show_peer_chat_ended(peer_nick)
                         break
                         
                     if line.startswith("MSG "):
                         msg = line[4:]
-                        print(f"\n[{peer_nick}] {msg}")
-                        print("> ", end='', flush=True)
+                        if not self.gui_enabled:
+                            print(f"\n[{peer_nick}] {msg}")
+                            print("> ", end='', flush=True)
+                        else:
+                            if self.gui:
+                                self.gui.show_peer_message(peer_nick, msg)
                         
             else:
                 logging.error(f"Unerwartete Antwort von {peer_nick}: {response}")
@@ -492,6 +528,23 @@ class ChatClient:
                         status = " [verbunden]" if nick in self.peer_connections else ""
                     print(f"  - {nick}{status}")
                     
+    def launch_gui(self):
+        """Startet die GUI"""
+        try:
+            from gui import ChatGUI
+            
+            self.gui_enabled = True
+            self.gui = ChatGUI(self)
+            print("\nStarte GUI...")
+            self.gui.start()
+            
+        except ImportError:
+            print("Fehler: gui.py nicht gefunden oder tkinter nicht installiert")
+            self.gui_enabled = False
+        except Exception as e:
+            print(f"Fehler beim Starten der GUI: {e}")
+            self.gui_enabled = False
+    
     def run_cli(self):
         """Führt die Command-Line-Interface aus"""
         print("\n=== Group Chat ===")
@@ -500,6 +553,7 @@ class ChatClient:
         print("  /msg (/m) <user> <nachricht> - Direkt-Nachricht")
         print("  /chat (/c) <user>            - Direkt-Chat initiieren")
         print("  /users (/u)                  - Benutzer auflisten")
+        print("  /gui                         - GUI starten")
         print("  /quit (/q)                   - Beenden")
         print()
         
@@ -538,13 +592,19 @@ class ChatClient:
                 elif line == '/users' or line == '/u':
                     self.list_users()
                     
+                # GUI starten
+                elif line == '/gui':
+                    self.launch_gui()
+                    # GUI läuft im selben Thread, danach beenden
+                    break
+                    
                 # Quit: /quit oder /q
                 elif line == '/quit' or line == '/q':
                     self.stop()
                     break
                     
                 else:
-                    print("Unbekannter Befehl. Verwende /b, /m, /c, /u oder /q (oder ausgeschrieben)")
+                    print("Unbekannter Befehl. Verwende /b, /m, /c, /u, /gui oder /q")
                     
             except EOFError:
                 break
