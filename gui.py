@@ -53,6 +53,9 @@ class ChatGUI:
         # Aktualisiere die Benutzerliste initial
         self.update_users_list()
         
+        # Registriere UI-Callbacks beim Client
+        self._register_callbacks()
+        
         # Starte Aktualisierungs-Thread
         self.update_thread = threading.Thread(target=self._update_loop, daemon=True)
         self.update_thread.start()
@@ -134,6 +137,26 @@ class ChatGUI:
             justify=tk.CENTER
         )
         info_label.pack(expand=True)
+    
+    def _register_callbacks(self):
+        """Registriert alle Event-Callbacks beim Client"""
+        self.client.register_ui_callback('user_joined', self.show_user_joined)
+        self.client.register_ui_callback('user_left', self.show_user_left)
+        self.client.register_ui_callback('broadcast_message', self.show_broadcast_message)
+        self.client.register_ui_callback('peer_chat_started', self.show_peer_chat_started)
+        self.client.register_ui_callback('peer_chat_ended', self.show_peer_chat_ended)
+        self.client.register_ui_callback('peer_message', self.show_peer_message)
+        self.client.register_ui_callback('peer_message_sent', self.show_peer_message_sent)
+        self.client.register_ui_callback('chat_request', self._on_chat_request)
+        self.client.register_ui_callback('error', self._on_error)
+    
+    def _on_chat_request(self, from_nick: str):
+        """Wird aufgerufen bei Chat-Anfrage"""
+        self.add_broadcast_message(f">>> Chat-Anfrage von {from_nick} <<<")
+    
+    def _on_error(self, error_msg: str):
+        """Wird aufgerufen bei Fehler"""
+        self.add_broadcast_message(f"[SERVER ERROR] {error_msg}")
         
     def _on_user_double_click(self, event):
         """Wird aufgerufen bei Doppelklick auf Benutzer"""
@@ -207,13 +230,12 @@ class ChatGUI:
             msg = input_entry.get().strip()
             if msg:
                 # Sende in separatem Thread (blockiert GUI nicht)
+                # Die Anzeige erfolgt über das peer_message_sent Event
                 threading.Thread(
                     target=self.client.send_peer_message,
                     args=(peer_nick, msg),
                     daemon=True
                 ).start()
-                # Zeige eigene Nachricht sofort an
-                self.add_peer_message(peer_nick, self.client.nickname, msg)
                 input_entry.delete(0, tk.END)
                 
         input_entry.bind('<Return>', lambda e: send_peer_msg())
@@ -350,7 +372,7 @@ class ChatGUI:
         if self.root:
             self.root.destroy()
             
-    def show_user_joined(self, nickname: str):
+    def show_user_joined(self, nickname: str, ip: str = None, udp_port: int = None):
         """Zeigt an, dass ein Benutzer beigetreten ist"""
         self.add_broadcast_message(f">>> {nickname} ist beigetreten <<<")
         self.update_users_list()
@@ -382,5 +404,9 @@ class ChatGUI:
         self.update_users_list()
         
     def show_peer_message(self, peer_nick: str, message: str):
-        """Zeigt eine Peer-Nachricht an"""
+        """Zeigt eine empfangene Peer-Nachricht an"""
         self.add_peer_message(peer_nick, peer_nick, message)
+    
+    def show_peer_message_sent(self, peer_nick: str, message: str):
+        """Zeigt eine gesendete Peer-Nachricht an"""
+        self.add_peer_message(peer_nick, self.client.nickname, message)

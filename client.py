@@ -49,6 +49,19 @@ class ChatClient:
         self.gui = None
         self.gui_enabled = False
         
+        # Event-Callbacks für UI-Updates (sowohl CLI als auch GUI)
+        self.ui_callbacks = {
+            'user_joined': [],
+            'user_left': [],
+            'broadcast_message': [],
+            'peer_chat_started': [],
+            'peer_chat_ended': [],
+            'peer_message': [],
+            'peer_message_sent': [],
+            'chat_request': [],
+            'error': []
+        }
+        
     def start(self) -> bool:
         """Startet den Client und verbindet zum Server"""
         try:
@@ -152,6 +165,22 @@ class ChatClient:
             self.peer_connections.clear()
             
         logging.info("Client gestoppt")
+    
+    def register_ui_callback(self, event_type: str, callback):
+        """Registriert einen Callback für UI-Events"""
+        if event_type in self.ui_callbacks:
+            self.ui_callbacks[event_type].append(callback)
+            
+    def trigger_ui_event(self, event_type: str, *args, **kwargs):
+        """Triggert ein UI-Event für alle registrierten Callbacks"""
+        if event_type in self.ui_callbacks:
+            callback_count = len(self.ui_callbacks[event_type])
+            logging.debug(f"Trigger Event '{event_type}' mit {callback_count} Callbacks, Args: {args}")
+            for callback in self.ui_callbacks[event_type]:
+                try:
+                    callback(*args, **kwargs)
+                except Exception as e:
+                    logging.error(f"Fehler in UI-Callback für {event_type}: {e}")
         
     def receive_userlist(self):
         """Empfängt die initiale Nutzerliste vom Server"""
@@ -213,13 +242,9 @@ class ChatClient:
             
             with self.users_lock:
                 self.users[nick] = (ip, udp_port)
-                
-            if not self.gui_enabled:
-                print(f"\n>>> {nick} ist beigetreten <<<")
-                print("> ", end='', flush=True)
-            else:
-                if self.gui:
-                    self.gui.show_user_joined(nick)
+            
+            # Trigger Event für alle UIs
+            self.trigger_ui_event('user_joined', nick, ip, udp_port)
             
         elif command == "USER_LEFT" and len(parts) >= 2:
             nick = parts[1]
@@ -227,33 +252,26 @@ class ChatClient:
             with self.users_lock:
                 if nick in self.users:
                     del self.users[nick]
-                    
-            if not self.gui_enabled:
-                print(f"\n>>> {nick} hat den Chat verlassen <<<")
-                print("> ", end='', flush=True)
-            else:
-                if self.gui:
-                    self.gui.show_user_left(nick)
+            
+            # Trigger Event für alle UIs
+            self.trigger_ui_event('user_left', nick)
             
         elif command == "BROADCAST_MSG" and len(parts) >= 3:
             from_nick = parts[1]
             # Alles nach dem zweiten Leerzeichen ist die Nachricht
             message = ' '.join(parts[2:]) if len(parts) > 2 else ""
             
-            if not self.gui_enabled:
-                print(f"\n[BROADCAST von {from_nick}] {message}")
-                print("> ", end='', flush=True)
-            else:
-                if self.gui:
-                    self.gui.show_broadcast_message(from_nick, message)
+            # Trigger Event für alle UIs
+            self.trigger_ui_event('broadcast_message', from_nick, message)
             
         elif command == "LOGOUT_OK":
             logging.info("Logout bestätigt")
             
         elif command.startswith("ERROR"):
             error_msg = ' '.join(parts[1:]) if len(parts) > 1 else "UNKNOWN"
-            print(f"\n[SERVER ERROR] {error_msg}")
-            print("> ", end='', flush=True)
+            
+            # Trigger Event für alle UIs
+            self.trigger_ui_event('error', error_msg)
             
         else:
             logging.warning(f"Unbekannte Server-Nachricht: {line}")
@@ -288,12 +306,8 @@ class ChatClient:
             tcp_port = int(parts[2])
             peer_ip = addr[0]
             
-            if not self.gui_enabled:
-                print(f"\n>>> Chat-Anfrage von {from_nick} <<<")
-                print("> ", end='', flush=True)
-            else:
-                if self.gui:
-                    self.gui.add_broadcast_message(f">>> Chat-Anfrage von {from_nick} <<<")
+            # Trigger Event für alle UIs
+            self.trigger_ui_event('chat_request', from_nick)
             
             # Automatisch akzeptieren und Verbindung aufbauen
             threading.Thread(
@@ -350,15 +364,24 @@ class ChatClient:
                 # Antworten
                 peer_socket.sendall(f"CHAT_HELLO {self.nickname}\n".encode('utf-8'))
                 
-                if not self.gui_enabled:
-                    print(f"\n>>> Direkt-Chat mit {peer_nick} gestartet <<<")
-                    print("> ", end='', flush=True)
-                else:
-                    if self.gui:
-                        self.gui.show_peer_chat_started(peer_nick)
-                
+                # Prüfe ob bereits eine Verbindung existiert (Race Condition)
+                already_connected = False
                 with self.peer_lock:
-                    self.peer_connections[peer_nick] = peer_socket
+                    if peer_nick in self.peer_connections:
+                        logging.warning(f"Verbindung zu {peer_nick} existiert bereits, schließe neue")
+                        already_connected = True
+                    else:
+                        self.peer_connections[peer_nick] = peer_socket
+                        logging.info(f"Peer-Verbindung zu {peer_nick} gespeichert (handle_peer_connection), Socket {peer_socket.fileno()}")
+                
+                if already_connected:
+                    # Schließe diese Verbindung, behalte die bestehende
+                    return
+                
+                # Trigger Event für alle UIs
+                self.trigger_ui_event('peer_chat_started', peer_nick)
+                
+                logging.info(f"Starte Chat-Loop (handle) für {peer_nick}, Socket {peer_socket.fileno()}")
                     
                 # Chat-Loop
                 while self.running:
@@ -419,15 +442,24 @@ class ChatClient:
             response = file_handle.readline().strip()
             
             if response.startswith("CHAT_HELLO"):
-                if not self.gui_enabled:
-                    print(f"\n>>> Direkt-Chat mit {peer_nick} verbunden <<<")
-                    print("> ", end='', flush=True)
-                else:
-                    if self.gui:
-                        self.gui.show_peer_chat_started(peer_nick)
-                
+                # Prüfe ob bereits eine Verbindung existiert (Race Condition)
+                already_connected = False
                 with self.peer_lock:
-                    self.peer_connections[peer_nick] = peer_socket
+                    if peer_nick in self.peer_connections:
+                        logging.warning(f"Verbindung zu {peer_nick} existiert bereits, schließe neue")
+                        already_connected = True
+                    else:
+                        self.peer_connections[peer_nick] = peer_socket
+                        logging.info(f"Peer-Verbindung zu {peer_nick} gespeichert (connect_to_peer), Socket {peer_socket.fileno()}")
+                
+                if already_connected:
+                    # Schließe diese Verbindung, behalte die bestehende
+                    return
+                
+                # Trigger Event für alle UIs
+                self.trigger_ui_event('peer_chat_started', peer_nick)
+                
+                logging.info(f"Starte Chat-Loop (connect) für {peer_nick}, Socket {peer_socket.fileno()}")
                     
                 # Chat-Loop
                 while self.running:
@@ -441,22 +473,15 @@ class ChatClient:
                         continue
                         
                     if line == "BYE":
-                        if not self.gui_enabled:
-                            print(f"\n>>> {peer_nick} hat den Direkt-Chat beendet <<<")
-                            print("> ", end='', flush=True)
-                        else:
-                            if self.gui:
-                                self.gui.show_peer_chat_ended(peer_nick)
+                        # Trigger Event für alle UIs
+                        self.trigger_ui_event('peer_chat_ended', peer_nick)
                         break
                         
                     if line.startswith("MSG "):
                         msg = line[4:]
-                        if not self.gui_enabled:
-                            print(f"\n[{peer_nick}] {msg}")
-                            print("> ", end='', flush=True)
-                        else:
-                            if self.gui:
-                                self.gui.show_peer_message(peer_nick, msg)
+                        logging.info(f"Peer-Nachricht empfangen von {peer_nick}: {msg}")
+                        # Trigger Event für alle UIs
+                        self.trigger_ui_event('peer_message', peer_nick, msg)
                         
             else:
                 logging.error(f"Unerwartete Antwort von {peer_nick}: {response}")
@@ -503,13 +528,18 @@ class ChatClient:
         """Sendet eine Direkt-Nachricht an einen Peer"""
         with self.peer_lock:
             if peer_nick not in self.peer_connections:
+                logging.error(f"Keine aktive Verbindung zu {peer_nick}")
                 print(f"Keine aktive Verbindung zu {peer_nick}")
                 return
                 
             sock = self.peer_connections[peer_nick]
+            logging.info(f"Verwende Socket {sock.fileno()} für {peer_nick}")
             
         try:
             sock.sendall(f"MSG {message}\n".encode('utf-8'))
+            logging.info(f"Peer-Nachricht gesendet an {peer_nick}: {message}")
+            # Trigger Event für eigene Nachricht (damit sie im UI angezeigt wird)
+            self.trigger_ui_event('peer_message_sent', peer_nick, message)
         except Exception as e:
             logging.error(f"Fehler beim Senden der Peer-Nachricht: {e}")
             with self.peer_lock:
@@ -545,8 +575,31 @@ class ChatClient:
             print(f"Fehler beim Starten der GUI: {e}")
             self.gui_enabled = False
     
+    def _register_cli_callbacks(self):
+        """Registriert CLI-Callbacks für Events"""
+        self.register_ui_callback('user_joined', lambda nick, ip, port: self._cli_print(f"\n>>> {nick} ist beigetreten <<<"))
+        self.register_ui_callback('user_left', lambda nick: self._cli_print(f"\n>>> {nick} hat den Chat verlassen <<<"))
+        self.register_ui_callback('broadcast_message', lambda from_nick, msg: self._cli_print(f"\n[BROADCAST von {from_nick}] {msg}"))
+        self.register_ui_callback('peer_chat_started', lambda nick: self._cli_print(f"\n>>> Direkt-Chat mit {nick} gestartet <<<"))
+        self.register_ui_callback('peer_chat_ended', lambda nick: self._cli_print(f"\n>>> {nick} hat den Direkt-Chat beendet <<<"))
+        self.register_ui_callback('peer_message', lambda nick, msg: self._cli_print(f"\n[{nick}] {msg}"))
+        self.register_ui_callback('peer_message_sent', lambda nick, msg: self._cli_print(f"\n[{self.nickname}] {msg}"))
+        self.register_ui_callback('chat_request', lambda nick: self._cli_print(f"\n>>> Chat-Anfrage von {nick} <<<"))
+        self.register_ui_callback('error', lambda msg: self._cli_print(f"\n[SERVER ERROR] {msg}"))
+    
+    def _cli_print(self, message: str):
+        """Gibt eine Nachricht in der CLI aus"""
+        # Immer ausgeben - CLI und GUI können parallel laufen
+        # (Auch wenn GUI aktiv ist, kann man in der Konsole die Ausgaben sehen)
+        print(message)
+        if not self.gui_enabled:
+            print("> ", end='', flush=True)
+    
     def run_cli(self):
         """Führt die Command-Line-Interface aus"""
+        # Registriere CLI-Callbacks
+        self._register_cli_callbacks()
+        
         print("\n=== Group Chat ===")
         print("Befehle:")
         print("  /broadcast (/b) <nachricht>  - Broadcast an alle")
