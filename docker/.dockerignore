@@ -1,0 +1,29 @@
+# Git
+.git/
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Documentation (docs wird nicht im Container benötigt)
+docs/
+
+# Scripts (nur get_ip.py wird benötigt, test.sh nicht)
+scripts/test.sh
+
+# Test files
+*.log
+

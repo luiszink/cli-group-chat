@@ -44,27 +44,50 @@ git clone <repository-url>
 cd group-chat
 ```
 
+## Schnellstart mit Docker 🐳
+
+**Perfekt für Demos und Präsentationen!**
+
+Starte Server + 2 automatische Demo-Clients mit einem Befehl:
+
+```bash
+docker-compose -f docker/docker-compose.yml up --build
+```
+
+Die Demo-Clients (Alice und Bob) senden automatisch Nachrichten und starten einen P2P-Chat!  
+Siehe [DOCKER_ANLEITUNG.md](DOCKER_ANLEITUNG.md) für Details.
+
 ## Verwendung
 
 ### 1. Server starten
 
 ```bash
-python server.py [port]
+python src/server.py [port]
 ```
 
 **Beispiel:**
 ```bash
-python server.py 5555
+python src/server.py 5555
 ```
 
 Standard-Port ist `5555` wenn nicht angegeben.
 
-Der Server läuft und wartet auf Client-Verbindungen.
+Der Server läuft auf **0.0.0.0** (alle Netzwerk-Interfaces) und wartet auf Client-Verbindungen.
+
+#### IP-Adresse ermitteln (für Netzwerk-Chat)
+
+Um anderen Clients im Netzwerk mitzuteilen, wie sie sich verbinden sollen:
+
+```bash
+python scripts/get_ip.py
+```
+
+Dieses Hilfsskript zeigt Ihre lokale Netzwerk-IP-Adresse an, die andere Clients verwenden müssen.
 
 ### 2. Clients starten
 
 ```bash
-python client.py <nickname> <server_host> <server_port> [udp_port]
+python src/client.py <nickname> <server_host> <server_port> [udp_port]
 ```
 
 **Parameter:**
@@ -75,32 +98,46 @@ python client.py <nickname> <server_host> <server_port> [udp_port]
 
 **Beispiele:**
 
-Drei Clients auf demselben Rechner:
+**Szenario 1: Drei Clients auf demselben Rechner (Lokal testen)**
 ```bash
 # Terminal 1 - Server
-python server.py 5555
+python src/server.py 5555
 
 # Terminal 2 - Client Alice
-python client.py Alice localhost 5555 6001
+python src/client.py Alice localhost 5555 6001
 
 # Terminal 3 - Client Bob
-python client.py Bob localhost 5555 6002
+python src/client.py Bob localhost 5555 6002
 
 # Terminal 4 - Client Charlie
-python client.py Charlie localhost 5555 6003
+python src/client.py Charlie localhost 5555 6003
 ```
 
-Clients im Netzwerk:
+**Szenario 2: Chat im Netzwerk (verschiedene Laptops/PCs)**
 ```bash
-# Auf Server-Rechner (z.B. 192.168.1.10)
-python server.py 5555
+# 1. Auf dem Server-Rechner die IP-Adresse ermitteln
+python scripts/get_ip.py
+# Beispiel-Ausgabe: Hauptnetzwerk-IP: 192.168.1.10
 
-# Auf Client-Rechner 1
-python client.py Alice 192.168.1.10 5555 6001
+# 2. Server starten
+python src/server.py 5555
 
-# Auf Client-Rechner 2
-python client.py Bob 192.168.1.10 5555 6002
+# 3. Auf Laptop 1 (anderer Rechner im gleichen WLAN/Netzwerk)
+python src/client.py Alice 192.168.1.10 5555 6001
+
+# 4. Auf Laptop 2 (noch ein anderer Rechner)
+python src/client.py Bob 192.168.1.10 5555 6002
+
+# 5. Auf Laptop 3
+python src/client.py Charlie 192.168.1.10 5555 6003
 ```
+
+**Wichtig für Netzwerk-Chat:**
+- Alle Geräte müssen im **gleichen Netzwerk** sein (gleiches WLAN oder LAN)
+- Die **Server-IP** muss korrekt sein (nicht `localhost`!)
+- Jeder Client braucht einen **eigenen UDP-Port** (z.B. 6001, 6002, 6003...)
+- Firewall muss die Ports freigeben (Windows fragt beim ersten Start)
+- Server-Rechner muss während der gesamten Chat-Session laufen
 
 ### 3. Client-Befehle (CLI)
 
@@ -169,7 +206,7 @@ Beendet den Client und meldet sich vom Server ab.
 
 ### Server-Terminal
 ```
-$ python server.py 5555
+$ python src/server.py 5555
 2025-12-10 10:00:00 - INFO - Server gestartet auf 0.0.0.0:5555
 2025-12-10 10:00:15 - INFO - Neue Verbindung von ('127.0.0.1', 54321)
 2025-12-10 10:00:15 - INFO - Client Alice erfolgreich eingeloggt von 127.0.0.1:6001
@@ -180,7 +217,7 @@ $ python server.py 5555
 
 ### Client Alice
 ```
-$ python client.py Alice localhost 5555 6001
+$ python src/client.py Alice localhost 5555 6001
 2025-12-10 10:00:15 - INFO - UDP Socket gebunden auf Port 6001
 2025-12-10 10:00:15 - INFO - TCP Listening Socket auf Port 54123
 2025-12-10 10:00:15 - INFO - Erfolgreich beim Server angemeldet
@@ -211,7 +248,7 @@ Chat-Anfrage an Bob gesendet
 
 ### Client Bob
 ```
-$ python client.py Bob localhost 5555 6002
+$ python src/client.py Bob localhost 5555 6002
 2025-12-10 10:00:30 - INFO - Erfolgreich beim Server angemeldet
 
 === Aktuelle Benutzer (1) ===
@@ -240,7 +277,7 @@ Aus der CLI:
 
 Oder direkt beim Start:
 ```bash
-python client.py Alice localhost 5555 6001
+python src/client.py Alice localhost 5555 6001
 # Nach dem Login:
 > /gui
 ```

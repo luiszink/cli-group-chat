@@ -15,6 +15,18 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
+
+def get_local_ip():
+    """Ermittelt die lokale IP-Adresse im Netzwerk"""
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        local_ip = s.getsockname()[0]
+        s.close()
+        return local_ip
+    except Exception:
+        return "unbekannt"
+
 class ChatServer:
     def __init__(self, host: str = '0.0.0.0', port: int = 5555):
         self.host = host
@@ -33,7 +45,21 @@ class ChatServer:
             self.server_socket.listen(5)
             self.running = True
             
+            local_ip = get_local_ip()
+            
+            logging.info("=" * 70)
             logging.info(f"Server gestartet auf {self.host}:{self.port}")
+            logging.info("")
+            logging.info("Server ist erreichbar:")
+            logging.info(f"  - Lokal (auf diesem Rechner): localhost:{self.port}")
+            if local_ip != "unbekannt":
+                logging.info(f"  - Im Netzwerk (andere Rechner): {local_ip}:{self.port}")
+            logging.info("")
+            logging.info("Clients können sich so verbinden:")
+            logging.info(f"  python client.py <nickname> localhost {self.port} 6001  # auf diesem Rechner")
+            if local_ip != "unbekannt":
+                logging.info(f"  python client.py <nickname> {local_ip} {self.port} 6001  # von anderen Rechnern")
+            logging.info("=" * 70)
             
             while self.running:
                 try:

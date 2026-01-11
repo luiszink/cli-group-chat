@@ -1,0 +1,66 @@
+version: '3.8'
+
+services:
+  # Chat Server
+  server:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: chat-server
+    networks:
+      chatnet:
+        ipv4_address: 172.20.0.10
+    ports:
+      - "5555:5555"
+    command: python src/server.py 5555
+    stdin_open: true
+    tty: true
+
+  # Client 1 - Alice (mit automatischen Demo-Nachrichten)
+  client-alice:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: chat-client-alice
+    networks:
+      - chatnet
+    depends_on:
+      - server
+    command: python docker/demo_client.py Alice server 5555 6001
+    stdin_open: true
+    tty: true
+
+  # Client 2 - Bob (mit automatischen Demo-Nachrichten)
+  client-bob:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: chat-client-bob
+    networks:
+      - chatnet
+    depends_on:
+      - server
+    command: python docker/demo_client.py Bob server 5555 6002
+    stdin_open: true
+    tty: true
+
+  # Client 3 - Charlie (optional, auskommentiert)
+  # client-charlie:
+  #   build:
+  #     context: ..
+  #     dockerfile: docker/Dockerfile
+  #   container_name: chat-client-charlie
+  #   networks:
+  #     - chatnet
+  #   depends_on:
+  #     - server
+  #   command: python docker/demo_client.py Charlie server 5555 6003
+  #   stdin_open: true
+  #   tty: true
+
+networks:
+  chatnet:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16

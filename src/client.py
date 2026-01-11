@@ -672,8 +672,31 @@ class ChatClient:
 
 def main():
     if len(sys.argv) < 4:
+        print("=" * 70)
+        print("Group Chat Client - Verwendung")
+        print("=" * 70)
+        print()
         print("Verwendung: python client.py <nickname> <server_host> <server_port> [udp_port]")
-        print("Beispiel: python client.py Alice localhost 5555 6001")
+        print()
+        print("Parameter:")
+        print("  nickname      - Dein eindeutiger Benutzername (2-20 Zeichen)")
+        print("  server_host   - IP-Adresse oder Hostname des Servers")
+        print("  server_port   - TCP-Port des Servers (Standard: 5555)")
+        print("  udp_port      - Dein UDP-Port für P2P-Chat (optional, Standard: 6000)")
+        print()
+        print("Beispiele:")
+        print()
+        print("  Lokaler Test (auf demselben Rechner):")
+        print("    python client.py Alice localhost 5555 6001")
+        print()
+        print("  Netzwerk-Chat (verschiedene Rechner im gleichen WLAN):")
+        print("    python client.py Alice 192.168.1.10 5555 6001")
+        print()
+        print("Hinweise:")
+        print("  - Für Netzwerk-Chat die Server-IP mit 'python get_ip.py' ermitteln")
+        print("  - Jeder Client braucht einen eigenen UDP-Port (6001, 6002, etc.)")
+        print("  - Alle Geräte müssen im gleichen Netzwerk sein")
+        print("=" * 70)
         sys.exit(1)
         
     nickname = sys.argv[1]
